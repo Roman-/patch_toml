@@ -1,0 +1,3 @@
+[simplest_config_possible]
+int_value = 1
+string_value = "hello world"
