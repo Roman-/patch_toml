@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import difflib
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -10,9 +9,12 @@ def run_case(name, input_file, expected_file, args):
     input_path = Path(input_file)
     expected_path = Path(expected_file)
     output_path = Path(f"/tmp/{name}.toml")
-    # Prepare output by copying input so there's something to patch
-    shutil.copy(input_path, output_path)
-    cmd = [sys.executable, "patch_toml.py", str(output_path)] + list(args)
+    cmd = [
+        sys.executable,
+        "patch_toml.py",
+        str(input_path),
+        str(output_path),
+    ] + list(args)
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     if result.stdout:
@@ -35,19 +37,24 @@ def main():
             "00_output_with_int_changed_to_42",
             "tests/00_input.toml",
             "tests/00_output_with_int_changed_to_42.toml",
-            ["set", "simplest_config_possible.int_value", "42"],
+            ["--set", "simplest_config_possible.int_value=42"],
         ),
         (
             "01_output_change_logger_levels_to_4",
             "tests/01_input.toml",
             "tests/01_output_change_logger_levels_to_4.toml",
-            ["set", "logger.stdout_level", "4", "set", "logger.file_level", "4"],
+            [
+                "--set",
+                "logger.stdout_level=4",
+                "--set",
+                "logger.file_level=4",
+            ],
         ),
         (
             "01_output_change_stdout_level_to_4",
             "tests/01_input.toml",
             "tests/01_output_change_stdout_level_to_4.toml",
-            ["set", "logger.stdout_level", "4"],
+            ["--set", "logger.stdout_level=4"],
         ),
     ]
 

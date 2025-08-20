@@ -4,7 +4,7 @@
 
 [logger]
 stdout_level = 4
-file_level = 4 # trace
+file_level = 4
 path = "/var/log/app.log"
 
 [device]
@@ -15,7 +15,6 @@ some_array = [1, 2, 3]
 # An empty section (valid TOML)
 [simulators]
 
-[servers]
 # array-of-tables
 [[servers]]
 host = "127.0.0.1"

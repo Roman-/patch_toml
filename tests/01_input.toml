@@ -15,7 +15,6 @@ some_array = [1, 2, 3]
 # An empty section (valid TOML)
 [simulators]
 
-[servers]
 # array-of-tables
 [[servers]]
 host = "127.0.0.1"
