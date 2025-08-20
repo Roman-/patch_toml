@@ -11,58 +11,99 @@ python3 patch_toml.py INPUT_TOML OUTPUT_TOML [options] --set 'path = TOML_VALUE 
 ```
 
 Options
---set STRING              Repeatable. One patch per flag. STRING grammar:
-                          path = TOML_VALUE [# inline comment]
-                          Examples:
-                            'logger.stdout_level = 6 # disable'
-                            'ups_sim.report_address = ""'
-                            'ups_sim.out_sources = [2, 2]'
-                            'servers[0].host = "localhost"'
---delete-key STRING       Repeatable. One delete per flag.
---delete-section STRING   Repeatable. One section per flag.
---top-comment TEXT        Add or replace existing leading comment block at the very top with TEXT.
+Options
+--set STRING              Repeatable. One patch per flag.
+                         Grammar: path = TOML_VALUE [# inline comment]
+                         Examples:
+                           'logger.stdout_level = 6 # disable'
+                           'device.report_address = ""'
+                           'device.out_sources = [2, 2]'
+                           'servers[0].host = "localhost"'
+--delete-key STRING       Repeatable. Delete a single key by path.
+                         Example: 'logger.file_level'
+--delete-section STRING   Repeatable. Delete a section (table) by path, non-recursive.
+                         Example: 'ups_sim'
+                         Arrays-of-tables require an index: 'servers[2]'
+--top-comment TEXT        Replace or create a leading top-of-file comment block using TEXT.
+                         Supports newlines. Each line is written as '# <line>'.
 
-# Patch path rules - TODO stopped here
-- Path segments are separated by dots.
+
+# Formatting rules
+- Any modified assignment is rewritten as:
+    key = TOML_VALUE
+  or, if a comment is provided:
+    key = TOML_VALUE # comment
+- Exactly one space around '=' and before '#'.
+- Arrays are emitted inline with commas followed by a single space.
+- Unmodified lines are left untouched.
+
+# Patch path rules
+- Path segments are separated by dots: section.key
 - Use TOML quoted keys inside the path if a segment contains spaces or dots:
-  --set '"my key".value = 1'
-- Arrays use zero-based indices in square brackets: items[2].name.
-- Arrays-of-tables are addressed the same way: services[0].port.
-- Only one key is targeted per --set.
+  "my key".value
+- Arrays use zero-based indices in square brackets: items[2].name
+- Arrays-of-tables addressed the same way: servers[0].port
+- Only one key is targeted per --set or --delete-key
 
 # Inline comment rules
-- If an inline comment is provided after '#', it replaces the existing inline comment for that key.
-- If no inline comment is provided, any existing inline comment is preserved.
-- The '#' that starts an inline comment is recognized only if it is not inside a quoted TOML string.
+- If an inline comment is provided after '#', it becomes the entire inline comment for that key.
+- If no inline comment is provided, any existing inline comment on that key is removed.
+- A '#' inside a quoted string is part of the string, not a comment delimiter.
 
-# Behavior and guarantees
-- Preserve original key order, table order, spacing, and unrelated comments.
-- Update/delete only the targeted keys and sections, and their inline comments.
+# Top-of-file comment rules
+- The top-of-file comment block is the contiguous block of comment or blank lines at the beginning of the file.
+- --top-comment replaces that block entirely. If none exists, a new block is inserted at the top.
+- A single blank line is inserted after the top-of-file comment block.
+
+# Delete-section rules
+- Non-recursive by design. Only the table specified by the exact path is removed.
+- Child tables (e.g., some_section.sub) are not removed automatically; delete them with additional --delete-section flags.
+- The tool deletes from the table header through its key/value lines until the next table header of any name.
+- Standalone comments immediately above or below the removed section are not deleted.
+
+# Behavior
+- Modify only targeted keys/sections and the top-of-file comment when requested.
+- Preserve unrelated content and comments except where a modified assignment or deleted section requires changes.
+- Writing to OUTPUT_TOML is allowed even if it equals INPUT_TOML.
 
 # Validation and fail states (non-zero exit)
-1.  input file not found, unreadable or input TOML is invalid
-2.  requested path (section/key or array index) not found
-3.  multiple candidate matches (ambiguous path)
-4.  invalid --set, --delete-key or --delete-section string (parse error in path or TOML_VALUE)
+1.  input file not found, unreadable, or invalid TOML
+2.  requested path (key, section, or array index) not found
+3.  ambiguous path (e.g., multiple matches in arrays-of-tables without an index)
+4.  invalid option payload (parse error in path or TOML_VALUE)
 5.  output path unwritable
-6.  duplicate patches to the same path in one invocation
 
 # Corner cases
-- Empty string values must be quoted in the TOML_VALUE: "".
-- Keys with dots/spaces must use quoted keys in the path: '"a.b".c'.
-- For arrays-of-tables, an index out of range is a "not found" error.
-- If a target key exists multiple times due to invalid/duplicate TOML, refuse with error 4.
-- If a key does not currently have an inline comment and a patch omits a comment, no comment is added.
-- If an existing key is on a multi-line structure (e.g., a multi-line array), the inline comment behavior applies to the key’s logical line; if not representable inline, place the comment on the key’s line above.
+- Empty string values must be quoted: ""
+- Keys with dots or spaces must use quoted segments in the path: "a.b".c
+- Array index out of range is a not found error
+- Deleting a section does not remove adjacent standalone comments
+- Duplicate flags targeting the same path are applied in order; the last one wins
+
+# Testing
+- Prefer semantic assertions: parse the output with tomllib and assert final values and key/section existence.
+- For formatting, assert canonicalization on changed lines only (e.g., "file_level = 6 # disable").
+- Verify that unmodified lines remain untouched byte-for-byte.
+- Verify that an omitted inline comment removes any existing inline comment.
+- Verify non-recursive delete-section behavior and that comments adjacent to the removed section remain.
+- Verify top-of-file comment replacement creates exactly one blank line after the block.
 
 # Examples
-Change three fields and set a top comment:
+Change three fields, remove an existing inline comment by omission, delete a key and a non-recursive section, set a top comment:
 ```sh
   python3 patch_toml.py config.toml config_patched.toml \
     --set 'logger.stdout_level = 6 # disable' \
     --set 'device.report_address = ""' \
-    --set 'device.some_array = [2, 3]' \
+    --set 'logger.file_level = 6' \
     --delete-key 'device.shadowing' \
     --delete-section 'simulators' \
     --top-comment 'Auto-patched by CI on build'
 ```
+
+Formatting expectation example
+Input line:
+  file_level   = 5   # trace
+After:
+  python3 patch_toml.py --set 'logger.file_level = 6'
+Output line:
+  file_level = 6

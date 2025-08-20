@@ -1,0 +1,42 @@
+# Example configuration file
+# Used for testing patch_toml patcher behavior
+# Contains multiple sections, types, and comments
+
+[logger]
+stdout_level = 4
+file_level   = 5   # trace
+path = "/var/log/app.log"
+
+[device]
+report_address = "192.168.0.12" # default device address
+shadowing = true
+some_array = [1, 2, 3]
+
+# An empty section (valid TOML)
+[simulators]
+
+[servers]
+# array-of-tables
+[[servers]]
+host = "127.0.0.1"
+port = 8080
+tags = ["local", "test"]
+
+[[servers]]
+host = "10.0.0.5"
+port = 9000
+tags = ["staging"]
+
+[[servers]]
+host = "prod.example.com"
+port = 443
+tags = ["prod", "secure"]
+
+[database]
+engine = "postgres"
+connection = { user = "admin", pass = "secret", db = "testdb" } # inline table
+
+# Example with a dotted/quoted key
+["my key.with.dots"]
+value = "strange"
+count = 42
